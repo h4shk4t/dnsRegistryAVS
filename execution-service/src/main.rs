@@ -1,7 +1,11 @@
-use reqwest::Client;
+use jsonrpc_core::{IoHandler, Params, Error, ErrorCode};
+use jsonrpc_http_server::ServerBuilder;
+
 use serde_json::Value;
 use regex::Regex;
-
+use hickory_resolver::{config::ResolverOpts, TokioAsyncResolver};
+use hickory_client::rr::RecordType;
+use hickory_resolver::config::ResolverConfig;
 
 // curl -s "https://cloudflare-dns.com/dns-query?name=<selector>._domainkey.<domain>&type=TXT" -H "Accept: application/dns-json"
 // curl -s "https://dns.quad9.net/dns-query?name=<selector>._domainkey.<domain>&type=TXT" -H "Accept: application/dns-json"
@@ -9,55 +13,99 @@ use regex::Regex;
 // curl -s "https://doh.opendns.com/dns-query?name=<selector>._domainkey.<domain>&type=TXT" -H "Accept: application/dns-json"
 // curl -s "https://doh.cleanbrowsing.org/doh/family-filter/?name=<selector>._domainkey.<domain>&type=TXT" -H "Accept: application/dns-json"
 
-
 #[tokio::main]
+async fn main() {
+
+    let mut io = IoHandler::default();
+
+    io.add_method("get_dkim_public_key", |params: Params| async {
+        match handle_get_dkim_public_key(params).await {
+            Ok(result) => Ok(result),
+            Err(err) => {
+                let message = format!("Error fetching DKIM public key: {}", err);
+                Err(Error {
+                    code: ErrorCode::ServerError(-32001),  // Custom error code
+                    message,
+                    data: None,  // Optional: you could add additional error data here
+                })
+            }
+        }
+    });
+
+    // Spin up Server
+    let server = ServerBuilder::new(io)
+        .threads(3)
+        .start_http(&"0.0.0.0:3030".parse().unwrap())
+        .unwrap();
+
+    println!("Execution Service server running on port 3030");
+    server.wait();
+}
+
+// Your function remains largely unchanged, except for the error type in the return signature
 async fn get_dkim_public_key(
     selector: String,
     domain: String,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let hosts = vec!["dns.google", "dns.cloudflare", "dns.quad9"];
-    let mut pubkey_found = false;
+) -> Result<Value, Box<dyn std::error::Error>> {
+    let resolver_config = ResolverConfig::quad9();
+    let resolver_opts = ResolverOpts::default();
+    
+    let resolver = TokioAsyncResolver::tokio(resolver_config, resolver_opts);
 
-    for host in hosts {
-        let url = format!("https://{}/resolve?name={}._domainkey.{}&type=TXT", host, selector, domain);
+    // let selector = "mail".to_string();
+    // let domain = "sdslabs.co".to_string();
+    let dkim_name = format!("{}._domainkey.{}", selector, domain);
 
-        let client = Client::new();
-        let res = client.get(&url).send().await?.text().await?;
-
-        let body_json: Value = serde_json::from_str(&res)?;
-        let answers = body_json["Answer"].as_array().ok_or("No 'Answer' field found in response")?;
-
-        for answer in answers {
-            let data = answer["data"].as_str().unwrap_or("");
-            if Regex::new("k=rsa").unwrap().is_match(data) {
-                if let Some(pubkey_base64) = Regex::new("p=([A-Za-z0-9+/=]+)").unwrap().captures(data) {
-                    let pubkey = pubkey_base64.get(1).map_or("", |m| m.as_str());
-                    println!("Public key (base64): {}", pubkey);
-                    pubkey_found = true;
-                    break;
+    match resolver.lookup(dkim_name, RecordType::TXT).await {
+        Ok(response) => {
+            for record in response{
+                if let hickory_client::rr::RData::TXT(txt) = record {
+                    let txt_data = txt.txt_data();
+                    for data in txt_data.iter() {
+                        // Convert the byte slice to a UTF-8 string
+                        match std::str::from_utf8(&data) {
+                            Ok(text) => {
+                                if Regex::new("k=rsa").unwrap().is_match(text) {
+                                    if let Some(pubkey_base64) = Regex::new("p=([A-Za-z0-9+/=]+)").unwrap().captures(text) {
+                                        let pubkey = pubkey_base64.get(1).map_or("", |m| m.as_str());
+                                        println!("Public key (base64): {}", pubkey);
+                                        return Ok(Value::String(pubkey.to_string()));
+                                    }
+                                }
+                            },
+                            Err(_) => {
+                                eprintln!("Invalid UTF-8 sequence in TXT record");
+                                return Err("Invalid UTF-8 sequence in TXT record".into());
+                            },
+                        
+                        }
+                    }
                 }
             }
+            Err("DKIM public key not found".into())
+        },
+        Err(err) => {
+            eprintln!("DNS query failed: {:?}", err);
+            return Err(err.into());
         }
-
-        if pubkey_found {
-            break;
-        }
-    }
-
-    if pubkey_found {
-        Ok(())
-    } else {
-        Err("No RSA public key found".into())
     }
 }
 
-// Call get_dkim_public_key in main function
-fn main() {
-    let selector = "mail".to_string();
-    let domain = "sdslabs.co".to_string();
-    // let client = 0;
-    match get_dkim_public_key(selector, domain) {
-        Ok(_) => println!("Success"),
-        Err(e) => eprintln!("Error: {}", e),
+// Wrapper function to parse Params and call your async function
+async fn handle_get_dkim_public_key(params: Params) -> Result<Value, Box<dyn std::error::Error>> {
+    let (selector, domain): (String, String) = match params.parse(){
+        Ok((selector, domain)) => (selector, domain),
+        Err(err) => {
+            println!("Error: {}", err);
+            return Err(err.into())
+        }
+    };
+    // Attempt to get the DKIM public key
+    match get_dkim_public_key(selector, domain).await {
+        Ok(public_key) => Ok(public_key),
+        Err(err) => {
+            println!("Error: {}", err);
+            return Err(err.into())
+        },
     }
 }
