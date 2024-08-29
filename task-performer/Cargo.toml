@@ -5,7 +5,16 @@ edition = "2021"
 
 [dependencies]
 serde_json = "1.0.68"
-reqwest = { version = "0.11", features = ["json"] }
+openssl = { version = "0.10.59", features = ["vendored"] }
+reqwest = { version = "0.12.7", features = ["json"] }
 tokio = { version = "1.0", features = ["full"] }
 jsonrpc_client = { version = "*", features = ["reqwest", "surf", "isahc"] }
 jsonrpc-core = "18.0.0"
+# ethers = { version = "2.0.14", features = ["abigen", "signers", "utils", "core"] }
+ethers = "2"
+dotenvy = "0.15"
+serde = { version = "1.0", features = ["derive"] }
+
+[[bin]]
+name = "task-performer"
+path = "src/main.rs"
