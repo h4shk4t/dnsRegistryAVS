@@ -1,5 +1,13 @@
+# Build stage, TODO: actix middleware logger einbauen
+FROM rust:slim-buster AS builder
+
+RUN apt-get update && \
+  # here zlib1g
+  apt-get install -y pkg-config make g++ libssl-dev cmake libmariadb-dev-compat zlib1g && \
+  rustup target add x86_64-unknown-linux-gnu
+
 # Use the official Rust image as a builder
-FROM rust:1.72 as builder
+# FROM rust:1.72 as builder
 
 # Create a new directory for the application source code
 WORKDIR /usr/src/app
@@ -14,25 +22,16 @@ RUN cargo fetch
 COPY src ./src
 
 # Build the application
-RUN cargo build --release
+RUN cargo build --release --bin execution-service
 
-# Create a new, minimal image for running the application
-FROM debian:buster-slim
-
-# Install necessary dependencies for running Rust applications
-RUN apt-get update && \
-    apt-get install -y libssl-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Create a directory for the application
-WORKDIR /usr/src/app
+# Prod stage, removing the Rust toolchain
+FROM gcr.io/distroless/cc
 
 # Copy the compiled binary from the builder stage
 COPY --from=builder /usr/src/app/target/release/execution-service .
 
 # Expose the port on which the service will run
-EXPOSE 3030
+EXPOSE 4003
 
 # Run the application
 CMD ["./execution-service"]
