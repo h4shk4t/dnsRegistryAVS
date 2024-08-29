@@ -4,7 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = {version = "0.6.20", features = ["headers"]}
+axum = "0.6.20"
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.68"
+regex = "1.5.4"
+hickory-resolver = "0.24.1"
+hickory-client = "0.24.1"
+jsonrpc-http-server = "18.0.0"
+jsonrpc-core = "18.0.0"
+warp = "0.3"
+
+[[bin]]
+name = "validation-service"
+path = "src/main.rs"
