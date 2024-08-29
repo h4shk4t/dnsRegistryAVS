@@ -1,7 +1,7 @@
 use jsonrpc_core::{IoHandler, Params, Error, ErrorCode};
 use jsonrpc_http_server::ServerBuilder;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use regex::Regex;
 use hickory_resolver::{config::ResolverOpts, TokioAsyncResolver};
 use hickory_client::rr::RecordType;
@@ -52,8 +52,6 @@ async fn get_dkim_public_key(
     
     let resolver = TokioAsyncResolver::tokio(resolver_config, resolver_opts);
 
-    // let selector = "mail".to_string();
-    // let domain = "sdslabs.co".to_string();
     let dkim_name = format!("{}._domainkey.{}", selector, domain);
 
     match resolver.lookup(dkim_name, RecordType::TXT).await {
@@ -69,7 +67,21 @@ async fn get_dkim_public_key(
                                     if let Some(pubkey_base64) = Regex::new("p=([A-Za-z0-9+/=]+)").unwrap().captures(text) {
                                         let pubkey = pubkey_base64.get(1).map_or("", |m| m.as_str());
                                         println!("Public key (base64): {}", pubkey);
-                                        return Ok(Value::String(pubkey.to_string()));
+                                        return Ok(Value::Object(
+                                            serde_json::map::Map::from_iter(vec![
+                                                ("proof_of_task".to_string(), Value::String(pubkey.to_string())),
+                                                // Add data object which has an nested object with "transaction hash"
+                                                ("data".to_string(), Value::Object(
+                                                    serde_json::map::Map::from_iter(vec![
+                                                        ("transaction_hash".to_string(), Value::String("0x1234567890abcdef".to_string())),
+                                                    ])
+                                                )),
+                                                ("task_definition_id".to_string(), Value::Number(0.into())),
+                                                ("signature".to_string(), Value::String("Some signed value".to_string())),
+                                                ("performer_address".to_string(), Value::String("from_env".to_string())),
+                                            ])
+                                        )
+                                    );
                                     }
                                 }
                             },
