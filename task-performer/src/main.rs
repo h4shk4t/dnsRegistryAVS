@@ -1,7 +1,7 @@
 use ethers::abi::Token;
 use ethers::utils::hex;
 use tokio::time::Duration;
-use serde_json::{json, Value};
+use serde_json::json;
 use dotenvy::dotenv;
 use std::env;
 use ethers::signers::{LocalWallet, Signer};
@@ -91,6 +91,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>{
 
                 let serialized_signature = signature.to_vec();
                 let serialized_signature_hex = hex_encode(&serialized_signature);
+                // EC recover in js/solidity
+                // Pass message hash and signature to the smart contract
+                // This should return the address that has signed the message hash
                 println!("Serialized Signature: {:?}", serialized_signature_hex);
                 let json_rpc_body = JsonRpcRequest {
                     jsonrpc: "2.0".to_string(),

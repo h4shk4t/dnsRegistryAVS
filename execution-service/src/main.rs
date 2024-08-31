@@ -1,7 +1,7 @@
 use jsonrpc_core::{IoHandler, Params, Error, ErrorCode};
 use jsonrpc_http_server::ServerBuilder;
 
-use serde_json::{Value, json};
+use serde_json::Value;
 use regex::Regex;
 use hickory_resolver::{config::ResolverOpts, TokioAsyncResolver};
 use hickory_client::rr::RecordType;
