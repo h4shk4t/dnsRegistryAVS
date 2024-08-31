@@ -1,25 +1,27 @@
 use axum::{
     routing::post,
     Json, Router,
+    http::StatusCode
 };
-
 use serde::Deserialize;
 use serde_json::Value;
 use regex::Regex;
 use hickory_resolver::{config::ResolverOpts, TokioAsyncResolver};
 use hickory_client::rr::RecordType;
 use hickory_resolver::config::ResolverConfig;
-// const jsonRpcBody = {
-//     jsonrpc: "2.0",
-//     method: "sendTask",
-//     params: [proofOfTask, data, taskDefinitionId, performerAddress, sig],
-//   };
-
+// {
+//     "proofOfTask": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAntvSKT1hkqhKe0xcaZ0x+QbouDsJuBfby/S82jxsoC/SodmfmVs2D1KAH3mi1AqdMdU12h2VfETeOJkgGYq5ljd996AJ7ud2SyOLQmlhaNHH7Lx+Mdab8/zDN1SdxPARDgcM7AsRECHwQ15R20FaKUABGu4NTbR2fDKnYwiq5jQyBkLWP+LgGOgfUF4T4HZb2",
+//     "data": "0x1234567890abcdef",
+//     "taskDefinitionId": 0,
+//     "performer": "0x164214987558fff053c5815abc6effec632eee75"
+// }
 #[derive(Deserialize)]
-struct JsonRpcBody {
-    jsonrpc: String,
-    method: String,
-    params: Vec<String>,
+#[serde(rename_all = "camelCase")]
+struct RequestBody {
+    proof_of_task: String,
+    data: String,
+    task_definition_id: u64,
+    performer: String,
 }
 
 // async fn validate(Json(send_task): Json<SendTask>) -> String {
@@ -40,9 +42,9 @@ struct JsonRpcBody {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/task/validate", post(handle_validate_dkim_key));
-    println!("Running on http://localhost:4002");
+    println!("Running on http://10.8.0.42:4002");
     // Start Server
-    axum::Server::bind(&"127.0.0.1:4002".parse().unwrap())
+    axum::Server::bind(&"0.0.0.0:4002".parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
@@ -103,21 +105,23 @@ async fn validate_dkim_public_key(
 }
 
 // Wrapper function to parse Params and call your async function
-async fn handle_validate_dkim_key(Json(rpc_body): Json<JsonRpcBody>) -> bool {
-//     params: [proofOfTask, data, taskDefinitionId, performerAddress, sig],
-    let proof_of_task = rpc_body.params[0].clone();
-    let data = rpc_body.params[1].clone();
-    let task_definition_id = rpc_body.params[2].clone();
-    let performer_address = rpc_body.params[3].clone();
-    let sig = rpc_body.params[4].clone();
-    // Attempt to get the DKIM public key
+async fn handle_validate_dkim_key(
+    Json(rpc_body): Json<RequestBody>,
+) -> Result<Json<Value>, StatusCode> {
+    // JSON Body parameters are in camelcase, parse it into snake case
+    let proof_of_task = rpc_body.proof_of_task;
+    let data = rpc_body.data;
+    let task_definition_id = rpc_body.task_definition_id;
+    let performer_address = rpc_body.performer;
+    // Extract domain and 
     let selector = "20230601".to_string();
     let domain = "gmail.com".to_string();
+
     match validate_dkim_public_key(selector, domain, proof_of_task).await {
-        Ok(is_approved) => is_approved.as_bool().unwrap_or(false),
+        Ok(is_approved) => Ok(Json(is_approved)),
         Err(err) => {
             println!("Error: {}", err);
-            false
-        },
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
