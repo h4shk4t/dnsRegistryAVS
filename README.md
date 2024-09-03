@@ -19,11 +19,11 @@ There are 3 primary services in an AVS:
 3. **Validation Service**: The aggregator shares the proof of task with the validation service. This validation service verifies the proof of task and returns a boolean value. If the proof of task is valid (validated by multiple attesters), the aggregator submits the data to the contract.
 
 ## Key Implementation Details
-The existing internet IC-DNS-Oracle used by zkEmail, is replaced by the AVS. The oracle makes HTTP queries to Google's DNS servers to fetch the DKIM key of a domain. This creates a single point of failure and is overly reliant on a single DNS provider. On top of that it makes HTTP requests to `dns.google` instead of using the DNS protocol directly. 
+This repository is a proper Rust implementation of the PoC provided in this [repository](https://github.com/0xpanicError/dnsRegistry-avs/tree/main). The existing IC-DNS-Oracle used by zkEmail, is replaced by the AVS. The oracle makes HTTP queries to Google's DNS servers to fetch the DKIM key of a domain. This creates a single point of failure and is overly reliant on a single DNS provider. On top of that it makes HTTP requests to `dns.google` instead of using the DNS protocol directly. 
 
 In this implementation, the execution and validation services implemented in Rust, fetch the DKIM key of a domain by using the DNS protocol directly and can be ***easily*** configured to use any (or multiple) DNS providers. This makes this implementation decentralised, reliable and fast.
 
-Note: Using the task performer to propagate the query parameters (selector and domain) along with the proof of task to the P2P network for validation makes the network vulnerable to an adverserial operator. The malicious operator in this case can tamper the query parameters and submit a false DKIM key which will be validated by the attesters. This can be mitigated by propagating the transaction hash instead of the query parameters and fetching the query parameters from the contract.
+Note: Using the task performer to propagate the query parameters (selector and domain) along with the proof of task to the P2P network for validation makes the network vulnerable to an adverserial operator. The malicious operator in this case can tamper the query parameters and submit a false DKIM key which will be validated by the attesters. This can be mitigated by propagating the transaction hash instead of the query parameters and fetching the query parameters from the contract directly.
 
 ## Starting the AVS
 
