@@ -19,15 +19,46 @@ There are 3 primary services in an AVS:
 3. **Validation Service**: The aggregator shares the proof of task with the validation service. This validation service verifies the proof of task and returns a boolean value. If the proof of task is valid (validated by multiple attesters), the aggregator submits the data to the contract.
 
 ## Key Implementation Details
-This repository is a proper Rust implementation of the PoC provided in this [repository](https://github.com/0xpanicError/dnsRegistry-avs/tree/main). The existing IC-DNS-Oracle used by zkEmail, is replaced by the AVS. The oracle makes HTTP queries to Google's DNS servers to fetch the DKIM key of a domain. This creates a single point of failure and is overly reliant on a single DNS provider. On top of that it makes HTTP requests to `dns.google` instead of using the DNS protocol directly. 
+This repository is a proper Rust implementation of the PoC provided in this [repository]`(https://github.com/0xpanicError/dnsRegistry-avs/tree/main). The existing IC-DNS-Oracle used by zkEmail, is replaced by the AVS. The oracle makes HTTP queries to Google's DNS servers to fetch the DKIM key of a domain. This creates a single point of failure and is overly reliant on a single DNS provider. On top of that it makes HTTP requests to `dns.google` instead of using the DNS protocol directly. 
 
 In this implementation, the execution and validation services implemented in Rust, fetch the DKIM key of a domain by using the DNS protocol directly and can be ***easily*** configured to use any (or multiple) DNS providers. This makes this implementation decentralised, reliable and fast.
 
 Note: Using the task performer to propagate the query parameters (selector and domain) along with the proof of task to the P2P network for validation makes the network vulnerable to an adverserial operator. The malicious operator in this case can tamper the query parameters and submit a false DKIM key which will be validated by the attesters. This can be mitigated by propagating the transaction hash instead of the query parameters and fetching the query parameters from the contract directly.
 
-## Starting the AVS
+### Starting the AVS
 
 After setting the environment variables, one can start the AVS by simply starting the services with `docker-compose up`.
+
+### Docker Compose
+
+The `docker-compose.yml` file contains the configuration for the AVS services. The `docker-compose.yml` file contains the following services:
+aggregator:
+
+1. **`aggregator`**:
+    - Role: Acts as an aggregator node.
+    - Environment: Uses a private key from environment variables.
+    - Ports: Exposes ports 8545 and 9876.
+Network: Assigned a static IP address 10.8.0.69 on the p2p network.
+
+2. **`attester-1, attester-2, attester-3`**:
+    - Role: Attester nodes that connect to the aggregator.
+    - Command: Runs the attester script, connecting to the aggregator and validation service.
+    - Environment: Uses specific private keys and a task performer address.
+
+3. **`validation-service`**: 
+    - Role: Provides validation services by verifying proof of task.
+    - Build: Built from the validation-service directory.
+    - Ports: Exposes port 4002.
+
+4. **`execution-service`**:
+    - Role: Performs DNS resolution task.
+    - Build: Built from the execution-service directory.
+    - Ports: Exposes port 4003.
+
+5. **`task-performer`**:
+    - Role: Listens to service manager event, and performs task.
+    - Build: Built from the task-performer directory.
+    - Environment: Uses the aggregator's RPC address and a private key.
 
 ## Roadmap
 
