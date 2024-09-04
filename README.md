@@ -68,3 +68,4 @@ Network: Assigned a static IP address 10.8.0.69 on the p2p network.
 - [ ] Address potential security vulnerabilities
     - [ ] Prevention of spam attacks
     - [ ] To call every DNS provider for querying a public key or employ a Round Robin strategy
+- [ ] Code Refactoring
